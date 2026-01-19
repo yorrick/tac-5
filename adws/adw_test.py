@@ -6,7 +6,7 @@
 """
 ADW Test - AI Developer Workflow for agentic testing
 
-Usage: 
+Usage:
   uv run adw_test.py <issue-number> [adw-id] [--skip-e2e]
 
 Workflow:
@@ -47,7 +47,12 @@ from adw_modules.github import (
 from adw_modules.utils import make_adw_id, setup_logger, parse_json
 from adw_modules.state import ADWState
 from adw_modules.git_ops import commit_changes, finalize_git_operations
-from adw_modules.workflow_ops import format_issue_message, create_commit, ensure_adw_id, classify_issue
+from adw_modules.workflow_ops import (
+    format_issue_message,
+    create_commit,
+    ensure_adw_id,
+    classify_issue,
+)
 # Removed create_or_find_branch - now using state directly
 
 # Agent name constants
@@ -63,7 +68,7 @@ MAX_E2E_TEST_RETRY_ATTEMPTS = 2  # E2E ui tests
 def check_env_vars(logger: Optional[logging.Logger] = None) -> None:
     """Check that all required environment variables are set."""
     required_vars = [
-        "ANTHROPIC_API_KEY",
+        # "ANTHROPIC_API_KEY",
         "CLAUDE_CODE_PATH",
     ]
     missing_vars = [var for var in required_vars if not os.getenv(var)]
@@ -88,12 +93,12 @@ def parse_args(
     """Parse command line arguments.
     Returns (issue_number, adw_id, skip_e2e) where issue_number and adw_id may be None."""
     skip_e2e = False
-    
+
     # Check for --skip-e2e flag in args
     if "--skip-e2e" in sys.argv:
         skip_e2e = True
         sys.argv.remove("--skip-e2e")
-    
+
     # If we have state from stdin, we might not need issue number from args
     if state:
         # In piped mode, we might have no args at all
@@ -103,7 +108,7 @@ def parse_args(
         else:
             # Otherwise, we'll get issue from state
             return None, None, skip_e2e
-    
+
     # Standalone mode - need at least issue number
     if len(sys.argv) < 2:
         usage_msg = [
@@ -114,7 +119,7 @@ def parse_args(
             "  uv run adw_test.py 123",
             "  uv run adw_test.py 123 abc12345",
             "  uv run adw_test.py 123 --skip-e2e",
-            "  echo '{\"issue_number\": \"123\"}' | uv run adw_test.py",
+            '  echo \'{"issue_number": "123"}\' | uv run adw_test.py',
         ]
         if logger:
             for msg in usage_msg:
@@ -178,31 +183,31 @@ def log_test_results(
     state: ADWState,
     results: List[TestResult],
     e2e_results: List[E2ETestResult],
-    logger: logging.Logger
+    logger: logging.Logger,
 ) -> None:
     """Log comprehensive test results summary to the issue."""
     issue_number = state.get("issue_number")
     adw_id = state.get("adw_id")
-    
+
     if not issue_number:
         logger.warning("No issue number in state, skipping test results logging")
         return
-    
+
     # Calculate counts
     passed_count = sum(1 for r in results if r.passed)
     failed_count = len(results) - passed_count
     e2e_passed_count = sum(1 for r in e2e_results if r.passed)
     e2e_failed_count = len(e2e_results) - e2e_passed_count
-    
+
     # Create comprehensive summary
     summary = f"## 📊 Test Run Summary\n\n"
-    
+
     # Unit tests summary
     summary += f"### Unit Tests\n"
     summary += f"**Total Tests:** {len(results)}\n"
     summary += f"**Passed:** {passed_count} ✅\n"
     summary += f"**Failed:** {failed_count} ❌\n\n"
-    
+
     if results:
         summary += "#### Details:\n"
         for result in results:
@@ -210,14 +215,14 @@ def log_test_results(
             summary += f"- {status} **{result.test_name}**\n"
             if not result.passed and result.error:
                 summary += f"  - Error: {result.error[:200]}...\n"
-    
+
     # E2E tests summary if they were run
     if e2e_results:
         summary += f"\n### E2E Tests\n"
         summary += f"**Total Tests:** {len(e2e_results)}\n"
         summary += f"**Passed:** {e2e_passed_count} ✅\n"
         summary += f"**Failed:** {e2e_failed_count} ❌\n\n"
-        
+
         summary += "#### Details:\n"
         for result in e2e_results:
             status = "✅" if result.passed else "❌"
@@ -226,7 +231,7 @@ def log_test_results(
                 summary += f"  - Error: {result.error[:200]}...\n"
             if result.screenshots:
                 summary += f"  - Screenshots: {', '.join(result.screenshots)}\n"
-    
+
     # Overall status
     total_failures = failed_count + e2e_failed_count
     if total_failures > 0:
@@ -235,13 +240,12 @@ def log_test_results(
     else:
         summary += f"\n### ✅ Overall Status: PASSED\n"
         summary += f"All {len(results) + len(e2e_results)} tests passed successfully!\n"
-    
+
     # Post the summary to the issue
     make_issue_comment(
-        issue_number,
-        format_issue_message(adw_id, "test_summary", summary)
+        issue_number, format_issue_message(adw_id, "test_summary", summary)
     )
-    
+
     logger.info(f"Posted comprehensive test results summary to issue #{issue_number}")
 
 
@@ -573,7 +577,11 @@ def execute_single_e2e_test(
     request = AgentTemplateRequest(
         agent_name=agent_name,
         slash_command="/test_e2e",
-        args=[adw_id, agent_name, test_file],  # Pass ADW ID and agent name for screenshot directory
+        args=[
+            adw_id,
+            agent_name,
+            test_file,
+        ],  # Pass ADW ID and agent name for screenshot directory
         adw_id=adw_id,
         model="sonnet",
     )
@@ -871,19 +879,19 @@ def main():
 
     # Parse arguments
     arg_issue_number, arg_adw_id, skip_e2e = parse_args(None)
-    
+
     # Initialize state and issue number
     issue_number = arg_issue_number
-    
+
     # Ensure we have an issue number
     if not issue_number:
         print("Error: No issue number provided", file=sys.stderr)
         sys.exit(1)
-    
+
     # Ensure ADW ID exists with initialized state
     temp_logger = setup_logger(arg_adw_id, "adw_test") if arg_adw_id else None
     adw_id = ensure_adw_id(issue_number, arg_adw_id, temp_logger)
-    
+
     # Load the state that was created/found by ensure_adw_id
     state = ADWState.load(adw_id, temp_logger)
 
@@ -901,7 +909,7 @@ def main():
     except ValueError as e:
         logger.error(f"Error getting repository URL: {e}")
         sys.exit(1)
-    
+
     # We'll fetch issue details later only if needed
     issue = None
     issue_class = state.get("issue_class")
@@ -910,40 +918,49 @@ def main():
     branch_name = state.get("branch_name")
     if branch_name:
         # Try to checkout existing branch
-        result = subprocess.run(["git", "checkout", branch_name], capture_output=True, text=True)
+        result = subprocess.run(
+            ["git", "checkout", branch_name], capture_output=True, text=True
+        )
         if result.returncode != 0:
             logger.error(f"Failed to checkout branch {branch_name}: {result.stderr}")
             make_issue_comment(
                 issue_number,
-                format_issue_message(adw_id, "ops", f"❌ Failed to checkout branch {branch_name}")
+                format_issue_message(
+                    adw_id, "ops", f"❌ Failed to checkout branch {branch_name}"
+                ),
             )
             sys.exit(1)
         logger.info(f"Checked out existing branch: {branch_name}")
     else:
         # No branch in state - create a test-specific branch
         logger.info("No branch in state, creating test branch")
-        
+
         # Generate simple test branch name without classification
         branch_name = f"test-issue-{issue_number}-adw-{adw_id}"
         logger.info(f"Generated test branch name: {branch_name}")
-        
+
         # Create the branch
         from adw_modules.git_ops import create_branch
+
         success, error = create_branch(branch_name)
         if not success:
             logger.error(f"Error creating branch: {error}")
             make_issue_comment(
                 issue_number,
-                format_issue_message(adw_id, "ops", f"❌ Error creating branch: {error}")
+                format_issue_message(
+                    adw_id, "ops", f"❌ Error creating branch: {error}"
+                ),
             )
             sys.exit(1)
-        
+
         state.update(branch_name=branch_name)
         state.save("adw_test")
         logger.info(f"Created and checked out new test branch: {branch_name}")
         make_issue_comment(
             issue_number,
-            format_issue_message(adw_id, "ops", f"✅ Created test branch: {branch_name}")
+            format_issue_message(
+                adw_id, "ops", f"✅ Created test branch: {branch_name}"
+            ),
         )
 
     make_issue_comment(
@@ -1038,16 +1055,18 @@ def main():
     # Fetch issue details if we haven't already
     if not issue:
         issue = fetch_issue(issue_number, repo_path)
-    
+
     # Get issue classification if we need it for commit
     if not issue_class:
         issue_class, error = classify_issue(issue, adw_id, logger)
         if error:
-            logger.warning(f"Error classifying issue: {error}, defaulting to /chore for test commit")
+            logger.warning(
+                f"Error classifying issue: {error}, defaulting to /chore for test commit"
+            )
             issue_class = "/chore"
         state.update(issue_class=issue_class)
         state.save("adw_test")
-    
+
     commit_msg, error = create_commit(AGENT_TESTER, issue, issue_class, adw_id, logger)
 
     if error:
@@ -1064,7 +1083,7 @@ def main():
 
     # Log comprehensive test results to the issue
     log_test_results(state, results, e2e_results, logger)
-    
+
     # Finalize git operations (push and create/update PR)
     logger.info("\n=== Finalizing git operations ===")
     finalize_git_operations(state, logger)
@@ -1072,10 +1091,10 @@ def main():
     # Update state with test results
     # Note: test_results is not part of core state, but save anyway to track completion
     state.save("adw_test")
-    
+
     # Output state for chaining
     state.to_stdout()
-    
+
     # Exit with appropriate code
     total_failures = failed_count + e2e_failed_count
     if total_failures > 0:
