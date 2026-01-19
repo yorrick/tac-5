@@ -1,5 +1,5 @@
 import os
-from typing import Dict, Any, List
+from typing import Dict, Any
 from openai import OpenAI
 from anthropic import Anthropic
 from core.data_models import QueryRequest
