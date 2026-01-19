@@ -17,10 +17,12 @@ from core.data_models import (
     InsightsResponse,
     HealthCheckResponse,
     TableSchema,
-    ColumnInfo
+    ColumnInfo,
+    GenerateQueryRequest,
+    GenerateQueryResponse
 )
 from core.file_processor import convert_csv_to_sqlite, convert_json_to_sqlite, convert_jsonl_to_sqlite
-from core.llm_processor import generate_sql
+from core.llm_processor import generate_sql, generate_random_query
 from core.sql_processor import execute_sql_safely, get_database_schema
 from core.insights import generate_insights
 from core.sql_security import (
@@ -207,6 +209,42 @@ async def generate_insights_endpoint(request: InsightsRequest) -> InsightsRespon
             error=str(e)
         )
 
+@app.post("/api/generate-query", response_model=GenerateQueryResponse)
+async def generate_query_endpoint(request: GenerateQueryRequest) -> GenerateQueryResponse:
+    """Generate a random natural language query based on current database schema"""
+    try:
+        # Get database schema
+        schema_info = get_database_schema()
+
+        # Check if any tables exist
+        if not schema_info.get('tables') or len(schema_info['tables']) == 0:
+            return GenerateQueryResponse(
+                query="",
+                tables_used=[],
+                error="No tables available. Please upload data first."
+            )
+
+        # Generate random query
+        generated_query = generate_random_query(schema_info)
+
+        # Extract table names from schema
+        tables_used = list(schema_info['tables'].keys())
+
+        response = GenerateQueryResponse(
+            query=generated_query,
+            tables_used=tables_used
+        )
+        logger.info(f"[SUCCESS] Random query generated: {generated_query}")
+        return response
+    except Exception as e:
+        logger.error(f"[ERROR] Query generation failed: {str(e)}")
+        logger.error(f"[ERROR] Full traceback:\n{traceback.format_exc()}")
+        return GenerateQueryResponse(
+            query="",
+            tables_used=[],
+            error=str(e)
+        )
+
 @app.get("/api/health", response_model=HealthCheckResponse)
 async def health_check() -> HealthCheckResponse:
     """Health check endpoint with database status"""
@@ -217,9 +255,9 @@ async def health_check() -> HealthCheckResponse:
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
         tables = cursor.fetchall()
         conn.close()
-        
+
         uptime = (datetime.now() - app_start_time).total_seconds()
-        
+
         response = HealthCheckResponse(
             status="ok",
             database_connected=True,

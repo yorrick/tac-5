@@ -70,6 +70,17 @@ interface InsightsResponse {
   error?: string;
 }
 
+// Generate Query Types
+interface GenerateQueryRequest {
+  // No fields needed - uses current database schema
+}
+
+interface GenerateQueryResponse {
+  query: string;
+  tables_used: string[];
+  error?: string;
+}
+
 // Health Check Types
 interface HealthCheckResponse {
   status: "ok" | "error";
